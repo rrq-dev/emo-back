@@ -1,8 +1,8 @@
 package config
 
 var AllowedOrigins = []string{
-	"http://localhost:1506",
-	"http://localhost:5173",
+	"https://emo-back.onrender.com/",
+	"https://emobuddy-495ef.web.app/",
 }
 
 var GetAllowedOrigins = func() []string {
