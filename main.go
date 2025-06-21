@@ -13,10 +13,7 @@ import (
 )
 
 func init(){
-	err := godotenv.Load()
-	if err != nil {
-		panic("Error loading .env file")
-	}
+	_ = godotenv.Load() // Load environment variables from .env file
 }
 func main() {
 	app := fiber.New()
