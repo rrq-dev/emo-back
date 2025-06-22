@@ -4,7 +4,6 @@ import (
 	"emobackend/config"
 	"emobackend/model"
 	"emobackend/routes"
-	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/cors"
@@ -20,11 +19,10 @@ func main() {
 	app.Use(logger.New())
 
 	app.Use(cors.New(cors.Config{
-		AllowOrigins:     strings.Join(config.GetAllowedOrigins(), ","),
-		AllowMethods:     "GET,POST,PUT,DELETE",
-		AllowHeaders:	 "Origin,Content-Type,Accept,Authorization",
-		AllowCredentials: true,
-	}))
+    AllowOrigins: "https://emobuddy-495ef.web.app", // tanpa slash di akhir!
+    AllowHeaders: "Origin, Content-Type, Accept, Authorization",
+    AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+}))
 
 	config.ConnectPostgre()
 	config.DB.AutoMigrate(&model.User{})
