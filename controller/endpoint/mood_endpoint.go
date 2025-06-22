@@ -84,10 +84,24 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 				"message": "User tidak terautentikasi",
 			})
 		}
+		userData, ok := userDataRaw.(jwt.MapClaims)
+		if !ok {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Token tidak valid (tidak bisa dibaca)",
+			})
+		}
 
-		userData := userDataRaw.(jwt.MapClaims)
-		userID = userData["id"].(string)
-		userName = userData["name"].(string)
+		idVal, okID := userData["id"].(string)
+		nameVal, okName := userData["name"].(string)
+		if !okID || !okName {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Token tidak memiliki data user yang lengkap",
+			})
+		}
+
+		userID = idVal
+		userName = nameVal
+
 	}
 
 	// Simpan mood refleksi seperti biasa
