@@ -4,6 +4,7 @@ import (
 	"emobackend/config"
 	"emobackend/helper"
 	"emobackend/model"
+	"log"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -77,7 +78,6 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 		userID = "anon-" + helper.GenerateUserID()
 		userName = "Anonymous"
 	} else {
-		// ✅ Baru cek jika bukan anonim
 		userDataRaw := c.Locals("user")
 		if userDataRaw == nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -90,6 +90,7 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 		userName = userData["name"].(string)
 	}
 
+	// Simpan mood refleksi seperti biasa
 	reflection := model.MoodReflection{
 		UserID:     userID,
 		UserName:   userName,
@@ -105,11 +106,22 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 		})
 	}
 
+	// Auto-trigger Gemini untuk merespon curhat
+	go func() {
+		if input.Message != "" {
+			err := callGeminiAndSaveReflection(userID, input.Message, input.IsAnonymous)
+			if err != nil {
+				log.Println("Gagal menyimpan refleksi Gemini:", err)
+			}
+		}
+	}()
+
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Berhasil menyimpan refleksi mood",
 		"data":    reflection,
 	})
 }
+
 
 
 
