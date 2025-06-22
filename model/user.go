@@ -16,3 +16,11 @@ type User struct {
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 
 }
+
+type Payload struct {
+	User string `json:"user"`  // Username
+	Role string `json:"role"`  // Role (e.g. "user", "admin")
+	Iat  int64  `json:"iat"`   // Issued At
+	Nbf  int64  `json:"nbf"`   // Not Before
+	Exp  int64  `json:"exp"`   // Expiration Time
+}

@@ -5,11 +5,9 @@ import (
 	"emobackend/helper"
 	"emobackend/model"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt"
 )
 
 
@@ -85,23 +83,16 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 				"message": "User tidak terautentikasi",
 			})
 		}
-		userData, ok := userDataRaw.(jwt.MapClaims)
+
+		payload, ok := userDataRaw.(model.Payload)
 		if !ok {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Token tidak valid (tidak bisa dibaca)",
+				"message": "Gagal membaca token Paseto",
 			})
 		}
 
-		idRaw, okID := userData["id"].(float64)
-		nameVal, okName := userData["name"].(string)
-		if !okID || !okName {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Token tidak memiliki data user yang lengkap",
-			})
-		}
-
-		userID = fmt.Sprintf("user-%d", int(idRaw))
-		userName = nameVal
+		userID = "user-" + payload.User
+		userName = payload.User
 	}
 
 	reflection := model.MoodReflection{
@@ -119,12 +110,12 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 		})
 	}
 
-	// Auto-trigger AI
+	// Trigger Gemini async
 	go func() {
 		if input.Message != "" {
 			err := callGeminiAndSaveReflection(userID, input.Message, input.IsAnonymous)
 			if err != nil {
-				log.Println("Gagal menyimpan refleksi Gemini:", err)
+				fmt.Println("Gagal menyimpan refleksi Gemini:", err)
 			}
 		}
 	}()
@@ -134,6 +125,7 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 		"data":    reflection,
 	})
 }
+
 
 
 

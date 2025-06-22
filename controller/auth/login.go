@@ -2,11 +2,10 @@ package controller
 
 import (
 	"emobackend/config"
+	"emobackend/helper"
 	"emobackend/model"
-	"time"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/golang-jwt/jwt"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -25,28 +24,19 @@ func Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
 	}
 
-	// Cek password
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Wrong password"})
 	}
 
-	// Buat token JWT pakai MapClaims agar bisa dibaca middleware Fiber JWT
-	claims := jwt.MapClaims{
-		"id":    user.ID,
-		"name":  user.Name,
-		"email": user.Email,
-		"exp":   time.Now().Add(24 * time.Hour).Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	signedToken, err := token.SignedString(config.JwtKey)
+	// Buat token PASETO
+	token, err := helper.EncodeWithRoleHours("user", user.Name, 24)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
 	}
 
 	return c.JSON(fiber.Map{
 		"message": "Login successful",
-		"token":   signedToken,
+		"token":   token,
 		"user": fiber.Map{
 			"id":    user.ID,
 			"name":  user.Name,

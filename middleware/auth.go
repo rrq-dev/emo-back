@@ -1,25 +1,40 @@
 package middleware
 
 import (
-	"emobackend/config"
-	"log"
+	"emobackend/helper"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
-	jwtware "github.com/gofiber/jwt/v3"
 )
 
-func JWTProtected() fiber.Handler {
-	return jwtware.New(jwtware.Config{
-		SigningKey:   config.JwtKey,
-		ContextKey:   "user",
-		ErrorHandler: jwtError,
-	})
-}
+func PasetoMiddleware() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		authHeader := c.Get("Authorization")
+		if authHeader == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Token tidak ditemukan",
+			})
+		}
 
-func jwtError(c *fiber.Ctx, err error) error {
-	log.Println("[JWT ERROR]:", err.Error())
-	return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-		"message": "User tidak terautentikasi",
-		"error":   err.Error(),
-	})
+		parts := strings.Split(authHeader, "Bearer ")
+		if len(parts) != 2 {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Format token tidak valid",
+			})
+		}
+
+		token := parts[1]
+
+		payload, err := helper.Decoder(token)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"message": "Token tidak valid",
+				"error":   err.Error(),
+			})
+		}
+
+		// Simpan ke context
+		c.Locals("user", payload)
+		return c.Next()
+	}
 }
