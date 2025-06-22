@@ -4,6 +4,7 @@ import (
 	"emobackend/config"
 	"emobackend/helper"
 	"emobackend/model"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/crypto/bcrypt"
@@ -28,15 +29,27 @@ func Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Wrong password"})
 	}
 
-	// Buat token PASETO
-	token, err := helper.EncodeWithRoleHours("user", user.Name, 24)
+	// Generate PASETO token
+	token, err := helper.EncodeWithRoleHours("user", user.Name, 2)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate token"})
 	}
 
+	// Set cookie
+	c.Cookie(&fiber.Cookie{
+		Name:     "paseto_token",
+		Value:    token,
+		Expires:  time.Now().Add(2 * time.Hour),
+		HTTPOnly: true,                // aman dari JS access
+		Secure:   true,                // aktifkan kalau pakai HTTPS
+		SameSite: "Lax",               // atau "Strict" kalau mau lebih ketat
+		Path:     "/",
+	})
+
+	// Kirim juga di body biar frontend bisa simpan juga kalau perlu
 	return c.JSON(fiber.Map{
 		"message": "Login successful",
-		"token":   token,
+		"token":   token, // opsional kalau hanya mau pakai cookie
 		"user": fiber.Map{
 			"id":    user.ID,
 			"name":  user.Name,
@@ -44,3 +57,4 @@ func Login(c *fiber.Ctx) error {
 		},
 	})
 }
+
