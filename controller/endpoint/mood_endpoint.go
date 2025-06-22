@@ -4,6 +4,7 @@ import (
 	"emobackend/config"
 	"emobackend/helper"
 	"emobackend/model"
+	"fmt"
 	"log"
 	"time"
 
@@ -91,7 +92,7 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 			})
 		}
 
-		idVal, okID := userData["id"].(string)
+		idRaw, okID := userData["id"].(float64)
 		nameVal, okName := userData["name"].(string)
 		if !okID || !okName {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -99,12 +100,10 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 			})
 		}
 
-		userID = idVal
+		userID = fmt.Sprintf("user-%d", int(idRaw))
 		userName = nameVal
-
 	}
 
-	// Simpan mood refleksi seperti biasa
 	reflection := model.MoodReflection{
 		UserID:     userID,
 		UserName:   userName,
@@ -120,7 +119,7 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 		})
 	}
 
-	// Auto-trigger Gemini untuk merespon curhat
+	// Auto-trigger AI
 	go func() {
 		if input.Message != "" {
 			err := callGeminiAndSaveReflection(userID, input.Message, input.IsAnonymous)
@@ -135,6 +134,7 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 		"data":    reflection,
 	})
 }
+
 
 
 
