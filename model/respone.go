@@ -1,6 +1,8 @@
 package model
 
-import "github.com/golang-jwt/jwt"
+import (
+	"github.com/golang-jwt/jwt"
+)
 
 type APIResponse struct {
 	Status  string      `json:"status"`         // "success", "error", dll
@@ -14,3 +16,4 @@ type Claims struct {
 	Email string `json:"email"`
 	jwt.StandardClaims
 }
+

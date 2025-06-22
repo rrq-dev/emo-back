@@ -12,6 +12,7 @@ var DB *gorm.DB
 var JwtKey = []byte(os.Getenv("JWT_SECRET"))
 
 func ConnectPostgre() {
+	
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		log.Fatal("POSTGRES_DSN environment variable is not set")
