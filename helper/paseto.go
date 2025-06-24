@@ -1,9 +1,11 @@
 package helper
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -12,17 +14,83 @@ import (
 	"aidanwoods.dev/go-paseto"
 )
 
-func EncodeWithRoleHours(role, username string, hours int64) (string, error) {
-	privatekey := os.Getenv("PRIVATE_KEY")
+func EncodeWithRoleHours(role, name string, hours int) (string, error) {
+	// Get private key from environment
+	privateKeyHex := os.Getenv("PRIVATE_KEY")
+	if privateKeyHex == "" {
+		return "", fmt.Errorf("PRIVATE_KEY environment variable not set")
+	}
+
+	log.Printf("Private key hex length: %d", len(privateKeyHex))
+
+	// Decode hex private key
+	privateKeyBytes, err := hex.DecodeString(privateKeyHex)
+	if err != nil {
+		log.Printf("Failed to decode private key hex: %v", err)
+		return "", fmt.Errorf("invalid private key format: %v", err)
+	}
+
+	log.Printf("Private key bytes length: %d", len(privateKeyBytes))
+
+	// Create PASETO private key
+	privateKey, err := paseto.NewV4AsymmetricSecretKeyFromBytes(privateKeyBytes)
+	if err != nil {
+		log.Printf("Failed to create PASETO private key: %v", err)
+		return "", fmt.Errorf("failed to create PASETO key: %v", err)
+	}
+
+	// Create token with claims
 	token := paseto.NewToken()
-	// Set metadata: waktu pembuatan, masa berlaku, dll
+	
+	// Set standard claims
 	token.SetIssuedAt(time.Now())
 	token.SetNotBefore(time.Now())
 	token.SetExpiration(time.Now().Add(time.Duration(hours) * time.Hour))
-	token.SetString("user", username)
+	
+	// Set custom claims
 	token.SetString("role", role)
-	key, err := paseto.NewV4AsymmetricSecretKeyFromHex(privatekey)
-	return token.V4Sign(key, nil), err
+	token.SetString("name", name)
+	
+	// Log claims for debugging
+	log.Printf("Creating token with claims: role=%s, name=%s, exp=%v", 
+		role, name, time.Now().Add(time.Duration(hours) * time.Hour))
+
+	// Sign token
+	signedToken := token.V4Sign(privateKey, nil)
+	
+	if signedToken == "" {
+		return "", fmt.Errorf("failed to sign token - empty result")
+	}
+
+	log.Printf("Token signed successfully, length: %d", len(signedToken))
+	
+	return signedToken, nil
+}
+
+// ✅ Function untuk verify token (berguna untuk middleware)
+func VerifyPasetoToken(tokenString string) (*paseto.Token, error) {
+	publicKeyHex := os.Getenv("PUBLIC_KEY")
+	if publicKeyHex == "" {
+		return nil, fmt.Errorf("PUBLIC_KEY environment variable not set")
+	}
+
+	publicKeyBytes, err := hex.DecodeString(publicKeyHex)
+	if err != nil {
+		return nil, fmt.Errorf("invalid public key format: %v", err)
+	}
+
+	publicKey, err := paseto.NewV4AsymmetricPublicKeyFromBytes(publicKeyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PASETO public key: %v", err)
+	}
+
+	parser := paseto.NewParser()
+	token, err := parser.ParseV4Public(publicKey, tokenString, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse token: %v", err)
+	}
+
+	return token, nil
 }
 
 func Decoder(tokenStr string) (model.Payload, error) {
