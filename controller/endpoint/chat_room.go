@@ -34,20 +34,30 @@ func PostChatSession(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing session or message"})
 	}
 
-	// Ambil message terakhir untuk dikirim ke Gemini
 	last := req.Messages[len(req.Messages)-1]
 
-	// Format Gemini request
-	payload := map[string]interface{}{
-		"contents": []map[string]interface{}{
-			{
-				"role": "user",
-				"parts": []map[string]string{
-					{"text": last.Text},
-				},
-			},
+	// SYSTEM PROMPT: Bikin Gemini paham fungsinya
+	systemPrompt := map[string]interface{}{
+		"role": "system",
+		"parts": []map[string]string{
+			{"text": "Kamu adalah AI pendamping refleksi emosi. Balaslah dengan empati, gunakan bahasa santai, jangan terlalu kaku. Bantu pengguna merefleksikan perasaannya dengan ramah dan positif."},
 		},
 	}
+
+	userPrompt := map[string]interface{}{
+		"role": "user",
+		"parts": []map[string]string{
+			{"text": last.Text},
+		},
+	}
+
+	payload := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			systemPrompt,
+			userPrompt,
+		},
+	}
+
 	jsonPayload, _ := json.Marshal(payload)
 
 	apiKey := os.Getenv("GEMINI_API_KEY")
@@ -69,7 +79,6 @@ func PostChatSession(c *fiber.Ctx) error {
 		reply = geminiRes.Candidates[0].Content.Parts[0].Text
 	}
 
-	// Simpan user messages
 	collection := config.DB.Collection("gemini_chat")
 	for _, m := range req.Messages {
 		collection.InsertOne(context.TODO(), model.ChatReflection{
@@ -82,7 +91,6 @@ func PostChatSession(c *fiber.Ctx) error {
 		})
 	}
 
-	// Simpan AI balasan
 	collection.InsertOne(context.TODO(), model.ChatReflection{
 		SessionID:   req.SessionID,
 		Message:     "",
@@ -96,4 +104,5 @@ func PostChatSession(c *fiber.Ctx) error {
 		"reply": reply,
 	})
 }
+
 
