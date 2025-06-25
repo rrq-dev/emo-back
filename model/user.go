@@ -24,3 +24,9 @@ type Payload struct {
 	Nbf  int64  `json:"nbf"`
 	Exp  int64  `json:"exp"`
 }
+
+type RegisterInput struct {
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
