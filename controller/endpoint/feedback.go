@@ -11,7 +11,9 @@ import (
 )
 
 func SubmitFeedback(c *fiber.Ctx) error {
-	var input model.Feedback
+	var input struct {
+		Message string `json:"message" validate:"required"`
+	}
 
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -19,18 +21,21 @@ func SubmitFeedback(c *fiber.Ctx) error {
 		})
 	}
 
-	// Validasi
+	// Validasi manual (optional kalau pakai validator lib)
 	if input.Message == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
 			"error": "Pesan feedback tidak boleh kosong",
 		})
 	}
 
-	input.ID = uuid.New().String()
-	input.CreatedAt = time.Now()
+	feedback := model.Feedback{
+		ID:        uuid.New().String(),
+		Message:   input.Message,
+		CreatedAt: time.Now(),
+	}
 
 	collection := config.DB.Collection("feedback")
-	_, err := collection.InsertOne(context.TODO(), input)
+	_, err := collection.InsertOne(context.TODO(), feedback)
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Gagal menyimpan feedback",
@@ -41,3 +46,4 @@ func SubmitFeedback(c *fiber.Ctx) error {
 		"message": "Feedback berhasil dikirim!",
 	})
 }
+
