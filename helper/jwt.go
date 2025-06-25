@@ -14,7 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-var jwtKey = []byte(os.Getenv("JWT_SECRET"))
+var JwtKey = []byte(os.Getenv("JWT_SECRET"))
 
 func EncodeWithRoleHours(role, name, email string, userID primitive.ObjectID, hours int) (string, error) {
 	claims := &model.Claims{
@@ -34,7 +34,7 @@ func EncodeWithRoleHours(role, name, email string, userID primitive.ObjectID, ho
 		"exp":   claims.ExpiresAt,
 	})
 
-	tokenString, err := token.SignedString(jwtKey)
+	tokenString, err := token.SignedString(JwtKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign JWT: %v", err)
 	}
@@ -47,7 +47,7 @@ func VerifyJWTToken(tokenString string) (model.Payload, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return jwtKey, nil
+		return JwtKey, nil
 	})
 
 	if err != nil || !token.Valid {

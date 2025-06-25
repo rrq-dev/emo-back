@@ -5,36 +5,39 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/golang-jwt/jwt"
 )
 
-func PasetoMiddleware() fiber.Handler {
+func JWTProtected() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		authHeader := c.Get("Authorization")
 		if authHeader == "" {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Token tidak ditemukan",
+				"error": "Missing Authorization header",
 			})
 		}
 
-		parts := strings.Split(authHeader, "Bearer ")
-		if len(parts) != 2 {
+		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+			return helper.JwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Format token tidak valid",
+				"error": "Invalid token",
 			})
 		}
 
-		token := parts[1]
-
-		payload, err := helper.Decoder(token)
-		if err != nil {
+		claims, ok := token.Claims.(jwt.MapClaims)
+		if !ok {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Token tidak valid",
-				"error":   err.Error(),
+				"error": "Invalid token claims",
 			})
 		}
 
-		// Simpan ke context
-		c.Locals("user", payload)
+		// simpan user_id ke context
+		c.Locals("user_id", claims["user_id"])
 		return c.Next()
 	}
 }
