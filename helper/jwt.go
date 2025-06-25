@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"emobackend/model"
@@ -74,3 +75,76 @@ func VerifyJWTToken(tokenString string) (model.Payload, error) {
 
 	return payload, nil
 }
+
+
+
+func ParseJWT(tokenString string) (*model.Claims, error) {
+	if tokenString == "" {
+		return nil, errors.New("token kosong")
+	}
+
+	// Hilangkan prefix "Bearer " jika ada
+	if after, ok :=strings.CutPrefix(tokenString, "Bearer "); ok  {
+		tokenString = after
+	}
+
+	// Parsing token dengan klaim kustom
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+		// Validasi metode signing
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("metode signing tidak didukung")
+		}
+		return JwtKey, nil
+	})
+
+	if err != nil || !token.Valid {
+		return nil, errors.New("token tidak valid atau gagal diparsing")
+	}
+
+	claimsMap, ok := token.Claims.(jwt.MapClaims)
+	if !ok {
+		return nil, errors.New("klaim token tidak valid")
+	}
+
+	// Konversi "id" ke ObjectID
+	idHex, ok := claimsMap["id"].(string)
+	if !ok {
+		return nil, errors.New("ID tidak ditemukan dalam klaim")
+	}
+
+	objectID, err := primitive.ObjectIDFromHex(idHex)
+	if err != nil {
+		return nil, errors.New("gagal konversi ID ke ObjectID")
+	}
+
+	claims := &model.Claims{
+		ID:        objectID,
+		Name:      getStringFromClaims(claimsMap, "name"),
+		Email:     getStringFromClaims(claimsMap, "email"),
+		IssuedAt:  int64(getFloatFromClaims(claimsMap, "iat")),
+		ExpiresAt: int64(getFloatFromClaims(claimsMap, "exp")),
+	}
+
+	// Validasi waktu (manual tambahan, meskipun jwt udah handle)
+	now := time.Now().Unix()
+	if claims.ExpiresAt < now {
+		return nil, errors.New("token sudah expired")
+	}
+
+	return claims, nil
+}
+
+func getStringFromClaims(m jwt.MapClaims, key string) string {
+	if val, ok := m[key].(string); ok {
+		return val
+	}
+	return ""
+}
+
+func getFloatFromClaims(m jwt.MapClaims, key string) float64 {
+	if val, ok := m[key].(float64); ok {
+		return val
+	}
+	return 0
+}
+

@@ -3,7 +3,6 @@ module emobackend
 go 1.24.2
 
 require (
-	aidanwoods.dev/go-paseto v1.5.4
 	github.com/gofiber/fiber/v2 v2.52.8
 	github.com/golang-jwt/jwt v3.2.2+incompatible
 	github.com/joho/godotenv v1.5.1
@@ -13,7 +12,6 @@ require (
 )
 
 require (
-	aidanwoods.dev/go-result v0.3.1 // indirect
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
