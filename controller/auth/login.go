@@ -1,17 +1,18 @@
 package controller
 
 import (
+	"context"
 	"emobackend/config"
 	"emobackend/helper"
 	"emobackend/model"
 	"fmt"
 	"log"
-	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
-	"gorm.io/gorm"
 )
 
 func Login(c *fiber.Ctx) error {
@@ -29,8 +30,11 @@ func Login(c *fiber.Ctx) error {
 	log.Printf("Login attempt for email: %s", input.Email)
 
 	var user model.User
-	if err := config.DB.Where("email = ?", input.Email).First(&user).Error; err != nil {
-		if err == gorm.ErrRecordNotFound {
+	collection := config.DB.Collection("users")
+	filter := bson.M{"email": input.Email}
+	err := collection.FindOne(context.TODO(), filter).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
 			log.Printf("User not found: %s", input.Email)
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "User not found"})
 		}
@@ -43,48 +47,19 @@ func Login(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "Wrong password"})
 	}
 
-	// ✅ Enhanced PASETO token generation dengan validation
-	log.Printf("Attempting to generate PASETO token for user: %s", user.Email)
-	
-	// Cek environment variables
-	privateKey := os.Getenv("PRIVATE_KEY")
-	if privateKey == "" {
-		log.Printf("PRIVATE_KEY environment variable not set")
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"error": "Server configuration error", 
-			"details": "Private key not configured",
-		})
-	}
-
-	// Generate PASETO token dengan error handling yang detailed
-	token, err := helper.EncodeWithRoleHours("user", user.Name, 2)
+	// Generate JWT token
+	token, err := helper.EncodeWithRoleHours("user", user.Name, user.Email, user.ID, 2)
 	if err != nil {
-		log.Printf("PASETO token generation failed: %v", err)
-		log.Printf("Private key length: %d", len(privateKey))
-		
-		// Return detailed error untuk debugging
+		log.Printf("JWT token generation failed: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error": "Failed to generate token",
-			"details": fmt.Sprintf("PASETO error: %v", err),
-			"hint": "Check PRIVATE_KEY format and PASETO library version",
+			"details": fmt.Sprintf("JWT error: %v", err),
 		})
 	}
 
-	log.Printf("PASETO token generated successfully for user: %s", user.Email)
-
-	// Environment detection
-	isProduction := os.Getenv("ENV") == "production" || os.Getenv("NODE_ENV") == "production"
-	
-	// Set cookie
-	c.Cookie(&fiber.Cookie{
-		Name:     "paseto_token",
-		Value:    token,
-		Expires:  time.Now().Add(2 * time.Hour),
-		HTTPOnly: true,
-		Secure:   isProduction,
-		SameSite: "Lax",
-		Path:     "/",
-	})
+	// Simpan token JWT ke local storage
+	c.Set("token", token)
+	c.Set("expires", fmt.Sprintf("%d", time.Now().Add(2*time.Hour).Unix()))
 
 	// Response yang konsisten
 	return c.JSON(fiber.Map{
@@ -97,4 +72,3 @@ func Login(c *fiber.Ctx) error {
 		},
 	})
 }
-

@@ -16,9 +16,8 @@ func SetupURL(app *fiber.App) {
 	api.Post("/register", ctrl.Register)
 
 	// Endpoint
-	api.Get("/moods", control.GetAllMoodReflections)
-	api.Post("/moods", middleware.PasetoMiddleware(), control.SubmitMoodReflections)
-	api.Get("/moods/:userID", control.GetReflections)
+	api.Get("/moods", control.GetAllMoodsData)
+	api.Post("/moods", middleware.PasetoMiddleware(), control.SubmitMoods)
 	app.Get("/chat-reflections", control.GetAllChatReflections)
 	app.Post("/chat-refleksi", control.PostChatReflection)
 

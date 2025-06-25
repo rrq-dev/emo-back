@@ -2,7 +2,6 @@ package main
 
 import (
 	"emobackend/config"
-	"emobackend/model"
 	"emobackend/routes"
 	"strings"
 
@@ -25,8 +24,7 @@ func main() {
     AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
 }))
 
-	config.ConnectPostgre()
-	config.DB.AutoMigrate(&model.User{})
+	config.MongoConnect()
 
 	routes.SetupURL(app)
 

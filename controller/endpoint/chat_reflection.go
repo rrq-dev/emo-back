@@ -2,6 +2,7 @@ package controller
 
 import (
 	"bytes"
+	"context"
 	"emobackend/config"
 	"emobackend/model"
 	"encoding/json"
@@ -10,14 +11,27 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
 func GetAllChatReflections(c *fiber.Ctx) error {
 	var reflections []model.ChatReflection
 
-	if err := config.DB.Order("created_at DESC").Find(&reflections).Error; err != nil {
+	collection := config.DB.Collection("gemini_chat")
+	cursor, err := collection.Find(context.Background(), map[string]interface{}{}, 
+		// Sort by created_at descending
+		&options.FindOptions{Sort: map[string]interface{}{"created_at": -1}},
+	)
+	if err != nil {
 		return c.Status(500).JSON(fiber.Map{
 			"error": "Gagal mengambil data dari database",
+		})
+	}
+	defer cursor.Close(context.Background())
+
+	if err := cursor.All(context.Background(), &reflections); err != nil {
+		return c.Status(500).JSON(fiber.Map{
+			"error": "Gagal memproses data dari database",
 		})
 	}
 
@@ -61,21 +75,22 @@ func PostChatReflection(c *fiber.Ctx) error {
 		reply = geminiRes.Candidates[0].Content.Parts[0].Text
 	}
 
-	// Simpan ke DB via GORM
-	reflection := model.ChatReflection{
-		Message:     input.Message,
-		AIReply:     reply,
-		IsAnonymous: true,
-		CreatedAt:   time.Now(),
-	}
+	// Simpan ke DB via MongoDB
+reflection := model.ChatReflection{
+    Message:     input.Message,
+    AIReply:     reply,
+    IsAnonymous: true,
+    CreatedAt:   time.Now(),
+}
 
-	if err := config.DB.Create(&reflection).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Gagal menyimpan ke database"})
-	}
+collection := config.DB.Collection("gemini_chat") // Replace with your actual collection name
+if _, err := collection.InsertOne(context.Background(), reflection); err != nil {
+    return c.Status(500).JSON(fiber.Map{"error": "Gagal menyimpan ke database"})
+}
 
-	return c.JSON(fiber.Map{
-		"reply": reply,
-	})
+return c.JSON(fiber.Map{
+    "reply": reply,
+})
 }
 
 func callGeminiAndSaveReflection(userID string, message string, isAnonymous bool) error {
@@ -120,13 +135,19 @@ func callGeminiAndSaveReflection(userID string, message string, isAnonymous bool
 	}
 
 	// Simpan ke chat_reflections
-	ref := model.ChatReflection{
-		UserID:      &userID,
-		Message:     message,
-		AIReply:     reply,
-		IsAnonymous: isAnonymous,
-		CreatedAt:   time.Now(),
-	}
+ref := model.ChatReflection{
+    UserID:      &userID,
+    Message:     message,
+    AIReply:     reply,
+    IsAnonymous: isAnonymous,
+    CreatedAt:   time.Now(),
+}
 
-	return config.DB.Create(&ref).Error
+collection := config.DB.Collection("gemini_chat")
+_, insertErr := collection.InsertOne(context.Background(), ref)
+if insertErr != nil {
+	return insertErr
+}
+
+return nil
 }

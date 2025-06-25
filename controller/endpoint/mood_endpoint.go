@@ -1,68 +1,35 @@
 package controller
 
 import (
+	"context"
 	"emobackend/config"
-	"emobackend/helper"
+	gene "emobackend/helper"
 	"emobackend/model"
 	"fmt"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"gopkg.in/mgo.v2/bson"
 )
 
-
-func GetAllMoodReflections(c *fiber.Ctx) error {
-	var reflections []model.MoodReflection
-
-	if err := config.DB.Find(&reflections).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Gagal mengambil data refleksi mood",
-			"error":   err.Error(),
-		})
-	}
-
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Berhasil mengambil data refleksi mood",
-		"data":    reflections,
-	})
-}
-
-func GetReflections(c *fiber.Ctx) error {
-	userID := c.Params("userID")
-	if userID == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
-			"message": "User ID tidak boleh kosong",
-		})
-	}
-
-	var reflections []model.MoodReflection
-	err := config.DB.
-		Where("user_id = ?", userID).
-		Order("created_at DESC").
-		Find(&reflections).Error
-
+func GetAllMoodsData(c *fiber.Ctx) error {
+	collection := config.DB.Collection("heatmaps")
+	ctx := context.Background()
+	cursor, err := collection.Find(ctx, bson.M{})
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Gagal mengambil data refleksi mood",
-			"error":   err.Error(),
-		})
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
 	}
 
-	if len(reflections) == 0 {
-		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{
-			"message": "Belum ada data refleksi untuk user ini",
-			"data":    []model.MoodReflection{},
-		})
+	var moods []model.MoodReflection
+	if err := cursor.All(ctx, &moods); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Database error"})
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "Berhasil mengambil data refleksi mood",
-		"data":    reflections,
-	})
+	return c.JSON(moods)
 }
 
-
-func SubmitMoodReflections(c *fiber.Ctx) error {
+func SubmitMoods(c *fiber.Ctx) error {
 	var input model.MoodInput
 	if err := c.BodyParser(&input); err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
@@ -74,28 +41,26 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 	var userID, userName string
 
 	if input.IsAnonymous {
-		userID = "anon-" + helper.GenerateUserID()
+		userID = "anon-" + gene.GenerateUserID()
 		userName = "Anonymous"
 	} else {
-		userDataRaw := c.Locals("user")
-		if userDataRaw == nil {
+		userDataRaw := config.DB.Collection("users")
+
+		var userData model.User
+		if err := userDataRaw.FindOne(context.Background(), bson.M{"_id": input.UserID}).Decode(&userData); err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "User tidak terautentikasi",
+				"message": "User tidak ditemukan",
+				"error":   err.Error(),
 			})
 		}
 
-		payload, ok := userDataRaw.(model.Payload)
-		if !ok {
-			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
-				"message": "Gagal membaca token Paseto",
-			})
-		}
-
-		userID = "user-" + payload.User
-		userName = payload.User
+		// Ambil userID dan userName langsung dari userData
+		userID = "user-" + userData.ID.Hex()
+		userName = userData.Name
 	}
 
-	reflection := model.MoodReflection{
+	moods := model.MoodReflection {
+		ID:         primitive.NewObjectID(),
 		UserID:     userID,
 		UserName:   userName,
 		Mood:       input.Mood,
@@ -103,14 +68,6 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 		Timestamp:  time.Now(),
 	}
 
-	if err := config.DB.Create(&reflection).Error; err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
-			"message": "Gagal menyimpan refleksi mood",
-			"error":   err.Error(),
-		})
-	}
-
-	// Trigger Gemini async
 	go func() {
 		if input.Message != "" {
 			err := callGeminiAndSaveReflection(userID, input.Message, input.IsAnonymous)
@@ -122,15 +79,6 @@ func SubmitMoodReflections(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "Berhasil menyimpan refleksi mood",
-		"data":    reflection,
+		"data":    moods,
 	})
 }
-
-
-
-
-
-
-
-
-

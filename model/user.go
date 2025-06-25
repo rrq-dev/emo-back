@@ -3,24 +3,24 @@ package model
 import (
 	"time"
 
-	"gorm.io/gorm"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+// User untuk koleksi users
 type User struct {
-	ID        uint           `gorm:"primaryKey" json:"id"`
-	Name      string         `gorm:"type:varchar(100);not null" json:"name"`
-	Email     string         `gorm:"type:varchar(100);unique;not null" json:"email"`
-	Password  string         `gorm:"type:text;not null" json:"-"`
-	CreatedAt time.Time      `json:"created_at"`
-	UpdatedAt time.Time      `json:"updated_at"`
-	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
-
+	ID        primitive.ObjectID `bson:"_id,omitempty" json:"id"`
+	Name      string             `bson:"name" json:"name"`
+	Email     string             `bson:"email" json:"email"`
+	Password  string             `bson:"password" json:"-"`
+	CreatedAt time.Time          `bson:"created_at" json:"created_at"`
+	UpdatedAt time.Time          `bson:"updated_at" json:"updated_at"`
 }
 
+// Payload untuk data JWT (nggak perlu diubah banyak)
 type Payload struct {
-	User string `json:"user"`  // Username
-	Role string `json:"role"`  // Role (e.g. "user", "admin")
-	Iat  int64  `json:"iat"`   // Issued At
-	Nbf  int64  `json:"nbf"`   // Not Before
-	Exp  int64  `json:"exp"`   // Expiration Time
+	User string `json:"user"`
+	Role string `json:"role"`
+	Iat  int64  `json:"iat"`
+	Nbf  int64  `json:"nbf"`
+	Exp  int64  `json:"exp"`
 }
