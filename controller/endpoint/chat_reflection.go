@@ -6,12 +6,14 @@ import (
 	"emobackend/config"
 	"emobackend/model"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"gopkg.in/mgo.v2/bson"
 )
 
 func GetAllChatReflections(c *fiber.Ctx) error {
@@ -151,3 +153,63 @@ if insertErr != nil {
 
 return nil
 }
+
+func ProcessLatestMoodToGemini() error {
+	// Ambil mood terbaru dari submit_mood
+	var latest model.MoodReflection
+
+	opts := options.FindOne().SetSort(map[string]interface{}{"timestamp": -1})
+	err := config.DB.Collection("submit_mood").FindOne(context.TODO(), bson.M{}, opts).Decode(&latest)
+	if err != nil {
+		return fmt.Errorf("gagal ambil data submit_mood: %v", err)
+	}
+
+	// Panggil Gemini untuk proses refleksi
+	prompt := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{
+				"role": "user",
+				"parts": []map[string]string{
+					{"text": "Mood saya: " + latest.Mood + ". Curhatan saya: " + latest.Reflection + ". Tolong berikan refleksi atau dukungan yang suportif."},
+				},
+			},
+		},
+	}
+
+	payload, _ := json.Marshal(prompt)
+	apiKey := os.Getenv("GEMINI_API_KEY")
+	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey
+
+	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+	if err != nil {
+		return fmt.Errorf("gagal request ke Gemini: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var geminiRes model.GeminiReply
+	if err := json.NewDecoder(resp.Body).Decode(&geminiRes); err != nil {
+		return fmt.Errorf("gagal decode response Gemini: %v", err)
+	}
+
+	reply := "Refleksi tidak tersedia saat ini."
+	if len(geminiRes.Candidates) > 0 && len(geminiRes.Candidates[0].Content.Parts) > 0 {
+		reply = geminiRes.Candidates[0].Content.Parts[0].Text
+	}
+
+	// Simpan ke gemini_chat
+	reflection := model.ChatReflection{
+		UserID:      &latest.UserID,
+		Message:     latest.Reflection,
+		AIReply:     reply,
+		IsAnonymous: latest.UserName == "Anonymous",
+		CreatedAt:   time.Now(),
+	}
+
+	_, err = config.DB.Collection("gemini_chat").InsertOne(context.TODO(), reflection)
+	if err != nil {
+		return fmt.Errorf("gagal simpan ke gemini_chat: %v", err)
+	}
+
+	return nil
+}
+

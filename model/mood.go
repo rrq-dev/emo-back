@@ -6,7 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-// MoodReflection untuk koleksi mood_reflections
+// MoodReflection untuk menyimpan mood yang sudah dicatat user
 type MoodReflection struct {
 	ID         primitive.ObjectID `bson:"_id,omitempty" json:"id"`
 	UserID     string             `bson:"user_id" json:"user_id"`
@@ -14,13 +14,13 @@ type MoodReflection struct {
 	Mood       string             `bson:"mood" json:"mood"`
 	Reflection string             `bson:"reflection" json:"reflection"`
 	Timestamp  time.Time          `bson:"timestamp" json:"timestamp"`
+	Processed  bool               `bson:"processed,omitempty" json:"processed,omitempty"` // optional, for Gemini processing status
 }
 
-// MoodInput untuk menerima input dari user (misalnya dari frontend)
+// MoodInput untuk menerima input dari frontend
 type MoodInput struct {
 	Mood        string `json:"mood" bson:"mood" validate:"required,oneof=happy neutral sad frustrated"`
 	Message     string `json:"message" bson:"message"`
-	IsAnonymous bool   `json:"isAnonymous" bson:"is_anonymous"`
-	UserID      string `json:"userId,omitempty" bson:"user_id,omitempty"` 
+	IsAnonymous bool   `json:"is_anonymous" bson:"is_anonymous"` // konsisten dengan backend & frontend
+	UserID      string `json:"user_id,omitempty" bson:"user_id,omitempty"` // snake_case biar sama dengan backend fields
 }
-

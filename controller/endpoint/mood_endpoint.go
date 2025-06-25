@@ -44,7 +44,14 @@ func SubmitMoods(c *fiber.Ctx) error {
 		userID = "anon-" + gene.GenerateUserID()
 		userName = "Anonymous"
 	} else {
-		userIDHex := c.Locals("user_id").(string)
+		// Pastikan hanya user login yang lewat sini dan sudah melewati JWTProtected
+		userIDHex, ok := c.Locals("user_id").(string)
+		if !ok || userIDHex == "" {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "User belum login",
+			})
+		}
+
 		objID, err := primitive.ObjectIDFromHex(userIDHex)
 		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
@@ -72,8 +79,18 @@ func SubmitMoods(c *fiber.Ctx) error {
 		Mood:       input.Mood,
 		Reflection: input.Message,
 		Timestamp:  time.Now(),
+		Processed:  false, // mood belum dibaca oleh Gemini
 	}
 
+	// Simpan mood ke koleksi "submit_mood"
+	_, err := config.DB.Collection("submit_mood").InsertOne(context.Background(), moods)
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Gagal menyimpan mood ke database",
+		})
+	}
+
+	// Langsung proses mood ini ke Gemini secara async
 	go func() {
 		if input.Message != "" {
 			err := callGeminiAndSaveReflection(userID, input.Message, input.IsAnonymous)
@@ -88,3 +105,5 @@ func SubmitMoods(c *fiber.Ctx) error {
 		"data":    moods,
 	})
 }
+
+
