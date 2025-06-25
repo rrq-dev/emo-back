@@ -16,7 +16,7 @@ import (
 )
 
 func Login(c *fiber.Ctx) error {
-	var input model.User
+	var input model.LoginInput
 	if err := c.BodyParser(&input); err != nil {
 		log.Printf("BodyParser error: %v", err)
 		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid input"})
