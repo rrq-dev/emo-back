@@ -22,6 +22,10 @@ func SetupURL(app *fiber.App) {
 	api.Get("/reflection/latest", control.GetAllChatReflections)
 	api.Post("/reflection", control.PostChatReflection)
 
+		//chatroom
+	api.Post("/chat-session", control.PostChatSession)
+
+
 
 }
 
