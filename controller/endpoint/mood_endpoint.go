@@ -14,7 +14,7 @@ import (
 )
 
 func GetAllMoodsData(c *fiber.Ctx) error {
-	collection := config.DB.Collection("heatmaps")
+	collection := config.DB.Collection("submit_mood")
 	ctx := context.Background()
 	cursor, err := collection.Find(ctx, bson.M{})
 	if err != nil {
