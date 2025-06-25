@@ -18,8 +18,6 @@ type ChatReflection struct {
 	CreatedAt   time.Time          `bson:"created_at" json:"created_at"`
 }
 
-
-
 // ChatRequest — request body yang dikirim dari user ke backend
 type ChatRequest struct {
 	Message string `json:"message" bson:"message"`

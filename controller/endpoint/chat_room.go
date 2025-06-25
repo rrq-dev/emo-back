@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"gopkg.in/mgo.v2/bson"
 )
 
 type ChatMessage struct {
@@ -105,4 +106,23 @@ func PostChatSession(c *fiber.Ctx) error {
 	})
 }
 
+func GetChatBySession(c *fiber.Ctx) error {
+	sessionID := c.Query("session_id")
+	if sessionID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "session_id dibutuhkan"})
+	}
+
+	var chats []model.ChatReflection
+
+	cursor, err := config.DB.Collection("gemini_chat").
+		Find(context.TODO(), bson.M{"session_id": sessionID})
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Gagal ambil chat"})
+	}
+	if err := cursor.All(context.TODO(), &chats); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Gagal decode chat"})
+	}
+
+	return c.JSON(chats)
+}
 
