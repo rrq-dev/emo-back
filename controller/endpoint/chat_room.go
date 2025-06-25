@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"emobackend/config"
+	"emobackend/helper"
 	"emobackend/model"
 	"encoding/json"
 	"net/http"
@@ -36,27 +37,33 @@ func PostChatSession(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing session or message"})
 	}
 
-	// Buat array dari messages untuk dikirim ke Gemini
+	// 🔥 Ambil prompt dari database
+	promptText, err := helper.GetSystemPrompt()
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Gagal ambil prompt dari database"})
+	}
+
+	// Bangun isi pesan dengan prompt di awal
 	contents := []map[string]interface{}{
 		{
 			"role": "system",
 			"parts": []map[string]string{
-				{"text": "Kamu adalah AI pendamping refleksi emosi. Balas dengan empati, bahasa santai, dan ajak pengguna memahami emosinya."},
+				{"text": promptText},
 			},
 		},
 	}
 
-	// Tambahkan semua messages ke dalam contents
+	// Tambahkan semua pesan user sebelumnya
 	for _, m := range req.Messages {
-		content := map[string]interface{}{
+		contents = append(contents, map[string]interface{}{
 			"role": m.Role,
 			"parts": []map[string]string{
 				{"text": m.Text},
 			},
-		}
-		contents = append(contents, content)
+		})
 	}
 
+	// Payload ke Gemini
 	payload := map[string]interface{}{
 		"contents": contents,
 	}
@@ -80,8 +87,8 @@ func PostChatSession(c *fiber.Ctx) error {
 		reply = geminiRes.Candidates[0].Content.Parts[0].Text
 	}
 
+	// Simpan ke database
 	collection := config.DB.Collection("gemini_chat")
-	// Simpan semua pesan
 	for _, m := range req.Messages {
 		collection.InsertOne(context.TODO(), model.ChatReflection{
 			SessionID:   req.SessionID,
@@ -93,7 +100,7 @@ func PostChatSession(c *fiber.Ctx) error {
 		})
 	}
 
-	// Simpan balasan dari AI
+	// Simpan balasan Gemini
 	collection.InsertOne(context.TODO(), model.ChatReflection{
 		SessionID:   req.SessionID,
 		Message:     "",
@@ -107,6 +114,7 @@ func PostChatSession(c *fiber.Ctx) error {
 		"reply": reply,
 	})
 }
+
 
 
 func GetChatBySession(c *fiber.Ctx) error {
