@@ -30,26 +30,29 @@ func PostChatSession(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid input"})
 	}
 
-	if len(req.Messages) == 0 {
-		return c.Status(400).JSON(fiber.Map{"error": "No messages provided"})
+	if len(req.Messages) == 0 || req.SessionID == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing session or message"})
 	}
 
-	// Format for Gemini
-	contents := []map[string]interface{}{}
-	for _, m := range req.Messages {
-		contents = append(contents, map[string]interface{}{
-			"role": m.Role,
-			"parts": []map[string]string{
-				{"text": m.Text},
+	// Ambil message terakhir untuk dikirim ke Gemini
+	last := req.Messages[len(req.Messages)-1]
+
+	// Format Gemini request
+	payload := map[string]interface{}{
+		"contents": []map[string]interface{}{
+			{
+				"role": "user",
+				"parts": []map[string]string{
+					{"text": last.Text},
+				},
 			},
-		})
+		},
 	}
-
-	payload := map[string]interface{}{"contents": contents}
 	jsonPayload, _ := json.Marshal(payload)
 
 	apiKey := os.Getenv("GEMINI_API_KEY")
 	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey
+
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to connect to Gemini"})
@@ -66,7 +69,7 @@ func PostChatSession(c *fiber.Ctx) error {
 		reply = geminiRes.Candidates[0].Content.Parts[0].Text
 	}
 
-	// Save conversation
+	// Simpan user messages
 	collection := config.DB.Collection("gemini_chat")
 	for _, m := range req.Messages {
 		collection.InsertOne(context.TODO(), model.ChatReflection{
@@ -79,7 +82,7 @@ func PostChatSession(c *fiber.Ctx) error {
 		})
 	}
 
-	// Save AI reply
+	// Simpan AI balasan
 	collection.InsertOne(context.TODO(), model.ChatReflection{
 		SessionID:   req.SessionID,
 		Message:     "",
@@ -93,3 +96,4 @@ func PostChatSession(c *fiber.Ctx) error {
 		"reply": reply,
 	})
 }
+
