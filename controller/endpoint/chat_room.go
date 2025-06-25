@@ -15,15 +15,16 @@ import (
 )
 
 type ChatMessage struct {
-	Role string `json:"role"`  // "user" or "model"
+	Role string `json:"role"`
 	Text string `json:"text"`
 }
 
 type ChatSessionRequest struct {
-	SessionID string        `json:"session_id"`
-	Messages  []ChatMessage `json:"messages"`
-	IsAnonymous bool        `json:"is_anonymous"`
+	SessionID   string        `json:"session_id"`
+	Messages    []ChatMessage `json:"messages"`
+	IsAnonymous bool          `json:"is_anonymous"`
 }
+
 
 func PostChatSession(c *fiber.Ctx) error {
 	var req ChatSessionRequest
@@ -35,35 +36,34 @@ func PostChatSession(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing session or message"})
 	}
 
-	last := req.Messages[len(req.Messages)-1]
-
-	// SYSTEM PROMPT: Bikin Gemini paham fungsinya
-	systemPrompt := map[string]interface{}{
-		"role": "system",
-		"parts": []map[string]string{
-			{"text": "Kamu adalah AI pendamping refleksi emosi. Balaslah dengan empati, gunakan bahasa santai, jangan terlalu kaku. Bantu pengguna merefleksikan perasaannya dengan ramah dan positif."},
+	// Buat array dari messages untuk dikirim ke Gemini
+	contents := []map[string]interface{}{
+		{
+			"role": "system",
+			"parts": []map[string]string{
+				{"text": "Kamu adalah AI pendamping refleksi emosi. Balas dengan empati, bahasa santai, dan ajak pengguna memahami emosinya."},
+			},
 		},
 	}
 
-	userPrompt := map[string]interface{}{
-		"role": "user",
-		"parts": []map[string]string{
-			{"text": last.Text},
-		},
+	// Tambahkan semua messages ke dalam contents
+	for _, m := range req.Messages {
+		content := map[string]interface{}{
+			"role": m.Role,
+			"parts": []map[string]string{
+				{"text": m.Text},
+			},
+		}
+		contents = append(contents, content)
 	}
 
 	payload := map[string]interface{}{
-		"contents": []map[string]interface{}{
-			systemPrompt,
-			userPrompt,
-		},
+		"contents": contents,
 	}
 
 	jsonPayload, _ := json.Marshal(payload)
 
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey
-
+	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + os.Getenv("GEMINI_API_KEY")
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to connect to Gemini"})
@@ -81,6 +81,7 @@ func PostChatSession(c *fiber.Ctx) error {
 	}
 
 	collection := config.DB.Collection("gemini_chat")
+	// Simpan semua pesan
 	for _, m := range req.Messages {
 		collection.InsertOne(context.TODO(), model.ChatReflection{
 			SessionID:   req.SessionID,
@@ -92,6 +93,7 @@ func PostChatSession(c *fiber.Ctx) error {
 		})
 	}
 
+	// Simpan balasan dari AI
 	collection.InsertOne(context.TODO(), model.ChatReflection{
 		SessionID:   req.SessionID,
 		Message:     "",
@@ -105,6 +107,7 @@ func PostChatSession(c *fiber.Ctx) error {
 		"reply": reply,
 	})
 }
+
 
 func GetChatBySession(c *fiber.Ctx) error {
 	sessionID := c.Query("session_id")
