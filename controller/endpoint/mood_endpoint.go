@@ -44,22 +44,28 @@ func SubmitMoods(c *fiber.Ctx) error {
 		userID = "anon-" + gene.GenerateUserID()
 		userName = "Anonymous"
 	} else {
-		userDataRaw := config.DB.Collection("users")
+		userIDHex := c.Locals("user_id").(string)
+		objID, err := primitive.ObjectIDFromHex(userIDHex)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid user ID from token",
+			})
+		}
 
 		var userData model.User
-		if err := userDataRaw.FindOne(context.Background(), bson.M{"_id": input.UserID}).Decode(&userData); err != nil {
+		err = config.DB.Collection("users").FindOne(context.TODO(), bson.M{"_id": objID}).Decode(&userData)
+		if err != nil {
 			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
 				"message": "User tidak ditemukan",
 				"error":   err.Error(),
 			})
 		}
 
-		// Ambil userID dan userName langsung dari userData
 		userID = "user-" + userData.ID.Hex()
 		userName = userData.Name
 	}
 
-	moods := model.MoodReflection {
+	moods := model.MoodReflection{
 		ID:         primitive.NewObjectID(),
 		UserID:     userID,
 		UserName:   userName,

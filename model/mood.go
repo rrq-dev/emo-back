@@ -20,6 +20,7 @@ type MoodReflection struct {
 type MoodInput struct {
 	Mood        string `json:"mood" bson:"mood" validate:"required,oneof=happy neutral sad frustrated"`
 	Message     string `json:"message" bson:"message"`
-	IsAnonymous bool   `json:"is_anonymous" bson:"is_anonymous"`
-	UserID      string `json:"user_id" bson:"user_id"`
+	IsAnonymous bool   `json:"isAnonymous" bson:"is_anonymous"`
+	UserID      string `json:"userId,omitempty" bson:"user_id,omitempty"` 
 }
+
