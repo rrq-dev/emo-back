@@ -51,3 +51,26 @@ func JWTProtected() fiber.Handler {
 		return c.Next()
 	}
 }
+
+func JWTOptional() fiber.Handler {
+	return func(c *fiber.Ctx) error {
+		token := c.Get("Authorization")
+		if token == "" {
+			// Jika tidak ada token, anggap anonymous
+			return c.Next()
+		}
+
+		// Tetap verifikasi kalau token ada
+		claims, err := helper.ParseJWT(token)
+		if err != nil {
+			return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{
+				"error": "Invalid or expired token",
+			})
+		}
+
+		// Simpan user_id ke context
+		c.Locals("user_id", claims.ID)
+		return c.Next()
+	}
+}
+
