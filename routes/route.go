@@ -15,10 +15,14 @@ func SetupURL(app *fiber.App) {
 	api.Post("/login", ctrl.Login)
 	api.Post("/register", ctrl.Register)
 
-	// Endpoint
-	api.Get("/moods", control.GetAllMoodsData)
+		// ✅ Routes yang bisa anonymous atau login
 	api.Post("/moods", middleware.JWTOptional(), control.SubmitMoods)
-	app.Get("/chat-reflections", control.GetAllChatReflections)
-	app.Post("/chat-refleksi", control.PostChatReflection)
+	api.Get("/moods", control.GetAllMoodsData) // Public route
 
+	 // ✅ Routes yang HARUS login
+	// api.Get("/moods/:userId", middleware.JWTProtected(), control.GetUserMoods)
+	// api.Get("/chat-reflections", middleware.JWTProtected(), control.GetLatestReflection)
+	// api.Post("/chat-refleksi", middleware.JWTProtected(), control.SubmitChatReflection)
 }
+
+

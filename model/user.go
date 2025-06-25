@@ -18,6 +18,8 @@ type User struct {
 
 // Payload untuk data JWT (nggak perlu diubah banyak)
 type Payload struct {
+	Name string `json:"name"`
+	Email string `json:"email"`
 	User string `json:"user"`
 	Role string `json:"role"`
 	Iat  int64  `json:"iat"`
