@@ -23,6 +23,7 @@ type Payload struct {
 	Iat  int64  `json:"iat"`
 	Nbf  int64  `json:"nbf"`
 	Exp  int64  `json:"exp"`
+	ID   string `json:"id"`
 }
 
 type RegisterInput struct {

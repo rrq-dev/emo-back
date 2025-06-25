@@ -1,7 +1,6 @@
 package helper
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -9,30 +8,24 @@ import (
 
 	"emobackend/model"
 
-	"aidanwoods.dev/go-paseto"
 	"github.com/golang-jwt/jwt"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 var JwtKey = []byte(os.Getenv("JWT_SECRET"))
 
+// Encode JWT dengan data user dan role, berlaku sekian jam
 func EncodeWithRoleHours(role, name, email string, userID primitive.ObjectID, hours int) (string, error) {
-	claims := &model.Claims{
-		ID:    userID,
-		Name:  name,
-		Email: email,
-		IssuedAt:  time.Now().Unix(),
-		ExpiresAt: time.Now().Add(time.Duration(hours) * time.Hour).Unix(),
-	}
-
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+	claims := jwt.MapClaims{
 		"id":    userID.Hex(),
 		"name":  name,
 		"email": email,
 		"role":  role,
-		"iat":   claims.IssuedAt,
-		"exp":   claims.ExpiresAt,
-	})
+		"iat":   time.Now().Unix(),
+		"exp":   time.Now().Add(time.Duration(hours) * time.Hour).Unix(),
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
 	tokenString, err := token.SignedString(JwtKey)
 	if err != nil {
@@ -41,9 +34,10 @@ func EncodeWithRoleHours(role, name, email string, userID primitive.ObjectID, ho
 	return tokenString, nil
 }
 
+// Validasi token dan ambil payload (tanpa PASETO)
 func VerifyJWTToken(tokenString string) (model.Payload, error) {
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Validasi algoritma
+		// Pastikan pakai HS256
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
@@ -59,49 +53,18 @@ func VerifyJWTToken(tokenString string) (model.Payload, error) {
 		return model.Payload{}, errors.New("failed to parse claims")
 	}
 
-	// Ekstrak payload dari JWT
+	// Konversi ke Payload struct
 	payload := model.Payload{
 		User: claims["name"].(string),
 		Role: claims["role"].(string),
 		Iat:  int64(claims["iat"].(float64)),
-		Nbf:  int64(claims["iat"].(float64)), // asumsi aktif sejak iat
+		Nbf:  int64(claims["iat"].(float64)), // default ke iat
 		Exp:  int64(claims["exp"].(float64)),
+		ID:   claims["id"].(string), // tambahkan jika payload butuh ID
 	}
 
-	// Optional: validasi waktu manual (jwt lib juga udah handle sih)
+	// Validasi waktu secara manual (opsional)
 	now := time.Now().Unix()
-	if payload.Nbf > now {
-		return model.Payload{}, errors.New("token belum aktif (not before)")
-	}
-	if payload.Exp < now {
-		return model.Payload{}, errors.New("token sudah expired")
-	}
-
-	return payload, nil
-}
-
-func Decoder(tokenStr string) (model.Payload, error) {
-	publicKey := os.Getenv("PUBLIC_KEY")
-
-	pubKey, err := paseto.NewV4AsymmetricPublicKeyFromHex(publicKey)
-	if err != nil {
-		return model.Payload{}, fmt.Errorf("failed to parse public key: %w", err)
-	}
-
-	parser := paseto.NewParser()
-	token, err := parser.ParseV4Public(pubKey, tokenStr, nil)
-	if err != nil {
-		return model.Payload{}, fmt.Errorf("failed to parse paseto token: %w", err)
-	}
-
-	var payload model.Payload
-	if err := json.Unmarshal(token.ClaimsJSON(), &payload); err != nil {
-		return model.Payload{}, fmt.Errorf("failed to unmarshal payload: %w", err)
-	}
-
-	// ✅ Validasi waktu: belum aktif atau expired
-	now := time.Now().Unix()
-
 	if payload.Nbf > now {
 		return model.Payload{}, errors.New("token belum aktif (not before)")
 	}
