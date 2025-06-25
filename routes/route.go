@@ -25,6 +25,9 @@ func SetupURL(app *fiber.App) {
 		//chatroom
 	api.Post("/chat-session", control.PostChatSession)
 
+		// feedback
+	app.Post("/feedback", control.SubmitFeedback)
+	
 
 
 }

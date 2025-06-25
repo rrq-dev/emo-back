@@ -5,6 +5,7 @@ go 1.24.2
 require (
 	github.com/gofiber/fiber/v2 v2.52.8
 	github.com/golang-jwt/jwt v3.2.2+incompatible
+	github.com/google/uuid v1.6.0
 	github.com/joho/godotenv v1.5.1
 	go.mongodb.org/mongo-driver v1.17.4
 	golang.org/x/crypto v0.33.0
@@ -14,7 +15,6 @@ require (
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
 	github.com/golang/snappy v0.0.4 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect

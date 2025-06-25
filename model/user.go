@@ -38,3 +38,10 @@ type LoginInput struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
 }
+
+type Feedback struct {
+	ID        string    `json:"id" bson:"_id,omitempty"`
+	UserID    string    `json:"user_id" bson:"user_id"` // bisa kosong kalau anonymous
+	Message   string    `json:"message" bson:"message" validate:"required"`
+	CreatedAt time.Time `json:"created_at" bson:"created_at"`
+}
