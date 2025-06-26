@@ -4,17 +4,26 @@ import (
 	"context"
 	"emobackend/config"
 
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"gopkg.in/mgo.v2/bson"
 )
 
-func GetSystemPrompt() (string, error) {
-	collection := config.DB.Collection("ai_prompts")
+type SystemPrompt struct {
+	ID   primitive.ObjectID `bson:"_id,omitempty" json:"_id"`
+	Text string             `bson:"text" json:"text"`
+}
 
-	var prompt struct {
-		Text string `bson:"text"`
+
+func GetPromptByID(id string) (string, error) {
+	objectID, err := primitive.ObjectIDFromHex(id)
+	if err != nil {
+		return "", err
 	}
 
-	err := collection.FindOne(context.TODO(), bson.M{"_id": "default_reflection"}).Decode(&prompt)
+	var prompt SystemPrompt
+	err = config.DB.Collection("ai_prompts").
+		FindOne(context.TODO(), bson.M{"_id": objectID}).
+		Decode(&prompt)
 	if err != nil {
 		return "", err
 	}

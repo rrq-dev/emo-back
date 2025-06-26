@@ -24,6 +24,7 @@ type ChatSessionRequest struct {
 	SessionID   string        `json:"session_id"`
 	Messages    []ChatMessage `json:"messages"`
 	IsAnonymous bool          `json:"is_anonymous"`
+	PromptID    string        `json:"prompt_id"` 
 }
 
 
@@ -37,13 +38,17 @@ func PostChatSession(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Missing session or message"})
 	}
 
-	// 🔥 Ambil prompt dari database
-	promptText, err := helper.GetSystemPrompt()
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Gagal ambil prompt dari database"})
+	// ✅ Ambil prompt berdasarkan ID jika ada
+	promptText := "Kamu adalah AI pendamping refleksi emosi. Balas dengan empati."
+	if req.PromptID != "" {
+		p, err := helper.GetPromptByID(req.PromptID)
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Gagal ambil prompt"})
+		}
+		promptText = p
 	}
 
-	// Bangun isi pesan dengan prompt di awal
+	// ✅ Bangun contents untuk Gemini
 	contents := []map[string]interface{}{
 		{
 			"role": "system",
@@ -53,7 +58,6 @@ func PostChatSession(c *fiber.Ctx) error {
 		},
 	}
 
-	// Tambahkan semua pesan user sebelumnya
 	for _, m := range req.Messages {
 		contents = append(contents, map[string]interface{}{
 			"role": m.Role,
@@ -63,11 +67,8 @@ func PostChatSession(c *fiber.Ctx) error {
 		})
 	}
 
-	// Payload ke Gemini
-	payload := map[string]interface{}{
-		"contents": contents,
-	}
-
+	// ✅ Kirim ke Gemini
+	payload := map[string]interface{}{"contents": contents}
 	jsonPayload, _ := json.Marshal(payload)
 
 	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + os.Getenv("GEMINI_API_KEY")
@@ -87,7 +88,7 @@ func PostChatSession(c *fiber.Ctx) error {
 		reply = geminiRes.Candidates[0].Content.Parts[0].Text
 	}
 
-	// Simpan ke database
+	// ✅ Simpan ke MongoDB
 	collection := config.DB.Collection("gemini_chat")
 	for _, m := range req.Messages {
 		collection.InsertOne(context.TODO(), model.ChatReflection{
@@ -99,8 +100,6 @@ func PostChatSession(c *fiber.Ctx) error {
 			CreatedAt:   time.Now(),
 		})
 	}
-
-	// Simpan balasan Gemini
 	collection.InsertOne(context.TODO(), model.ChatReflection{
 		SessionID:   req.SessionID,
 		Message:     "",
@@ -110,9 +109,7 @@ func PostChatSession(c *fiber.Ctx) error {
 		CreatedAt:   time.Now(),
 	})
 
-	return c.JSON(fiber.Map{
-		"reply": reply,
-	})
+	return c.JSON(fiber.Map{"reply": reply})
 }
 
 
