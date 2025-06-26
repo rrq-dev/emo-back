@@ -3,15 +3,12 @@ package helper
 import (
 	"context"
 	"emobackend/config"
+	"emobackend/model"
 
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"gopkg.in/mgo.v2/bson"
 )
 
-type SystemPrompt struct {
-	ID   primitive.ObjectID `bson:"_id,omitempty" json:"_id"`
-	Text string             `bson:"text" json:"text"`
-}
 
 
 func GetPromptByID(id string) (string, error) {
@@ -20,7 +17,7 @@ func GetPromptByID(id string) (string, error) {
 		return "", err
 	}
 
-	var prompt SystemPrompt
+	var prompt model.SystemPrompt
 	err = config.DB.Collection("ai_prompts").
 		FindOne(context.TODO(), bson.M{"_id": objectID}).
 		Decode(&prompt)

@@ -18,6 +18,9 @@ func SetupURL(app *fiber.App) {
 		// Routes yang bisa anonymous atau login
 	api.Post("/moods", middleware.JWTOptional(), control.SubmitMoods)
 	api.Get("/moods", control.GetAllMoodsData) // Public route
+	app.Get("/prompts", control.GetAllSystemPrompts)
+
+
 		// Gemini route
 	api.Get("/reflection/latest", control.GetAllChatReflections)
 	api.Post("/reflection", control.PostChatReflection)
@@ -25,6 +28,7 @@ func SetupURL(app *fiber.App) {
 		//chatroom
 	api.Post("/chat-session", control.PostChatSession)
 	// app.Get("/get-chat-session", control.GetChatBySession)
+
 
 
 		// feedback

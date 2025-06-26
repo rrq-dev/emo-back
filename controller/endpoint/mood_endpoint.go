@@ -106,4 +106,22 @@ func SubmitMoods(c *fiber.Ctx) error {
 	})
 }
 
+func GetAllSystemPrompts(c *fiber.Ctx) error {
+	var prompts []model.SystemPrompt
+
+	cursor, err := config.DB.Collection("ai_prompts").Find(context.TODO(), map[string]interface{}{})
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Gagal mengambil data prompt",
+		})
+	}
+
+	if err := cursor.All(context.TODO(), &prompts); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Gagal decode data prompt",
+		})
+	}
+
+	return c.JSON(prompts)
+}
 

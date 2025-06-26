@@ -24,3 +24,8 @@ type MoodInput struct {
 	IsAnonymous bool   `json:"is_anonymous" bson:"is_anonymous"` // konsisten dengan backend & frontend
 	UserID      string `json:"user_id,omitempty" bson:"user_id,omitempty"` // snake_case biar sama dengan backend fields
 }
+
+type SystemPrompt struct {
+	ID   primitive.ObjectID `bson:"_id,omitempty" json:"_id"`
+	Text string             `bson:"text" json:"text"`
+}
