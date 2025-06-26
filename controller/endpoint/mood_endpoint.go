@@ -125,3 +125,33 @@ func GetAllSystemPrompts(c *fiber.Ctx) error {
 	return c.JSON(prompts)
 }
 
+func GetPromptSuggestions(c *fiber.Ctx) error {
+	keyword := c.Query("s")
+	if keyword == "" {
+		return c.Status(400).JSON(fiber.Map{"error": "Parameter s (search) diperlukan"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Buat regex filter case-insensitive
+	filter := bson.M{
+		"text": bson.M{
+			"$regex":   keyword,
+			"$options": "i", // case-insensitive
+		},
+	}
+
+	cursor, err := config.DB.Collection("ai_prompts").Find(ctx, filter)
+	if err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Gagal ambil prompt"})
+	}
+	defer cursor.Close(ctx)
+
+	var results []model.SystemPrompt
+	if err := cursor.All(ctx, &results); err != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Gagal decode prompt"})
+	}
+
+	return c.JSON(results)
+}

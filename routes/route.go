@@ -19,11 +19,13 @@ func SetupURL(app *fiber.App) {
 	api.Post("/moods", middleware.JWTOptional(), control.SubmitMoods)
 	api.Get("/moods", control.GetAllMoodsData) // Public route
 	app.Get("/prompts", control.GetAllSystemPrompts)
+	app.Get("/prompts-sg", control.GetPromptSuggestions)
 
 
 		// Gemini route
 	api.Get("/reflection/latest", control.GetAllChatReflections)
 	api.Post("/reflection", control.PostChatReflection)
+
 
 		//chatroom
 	api.Post("/chat-session", control.PostChatSession)
