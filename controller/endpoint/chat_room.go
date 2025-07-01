@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"gopkg.in/mgo.v2/bson"
 )
 
@@ -27,18 +28,27 @@ type ChatSessionRequest struct {
 	PromptID    string        `json:"prompt_id"` 
 }
 
-
 func PostChatSession(c *fiber.Ctx) error {
 	var req ChatSessionRequest
 	if err := c.BodyParser(&req); err != nil {
 		return c.Status(400).JSON(fiber.Map{"error": "Invalid input"})
 	}
-
-	if len(req.Messages) == 0 || req.SessionID == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Missing session or message"})
+	if len(req.Messages) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Missing message"})
 	}
-
-	// ✅ Ambil prompt berdasarkan ID jika ada
+	// Buat session id jika kosong
+	sessionID := req.SessionID
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
+	// Ambil user id dari JWT jika ada
+	userID := ""
+	token := c.Get("Authorization")
+	if token != "" {
+		if payload, err := helper.VerifyJWTToken(token); err == nil {
+			userID = payload.ID
+		}
+	}
 	promptText := "Kamu adalah AI pendamping refleksi emosi. Balas dengan empati."
 	if req.PromptID != "" {
 		p, err := helper.GetPromptByID(req.PromptID)
@@ -47,8 +57,6 @@ func PostChatSession(c *fiber.Ctx) error {
 		}
 		promptText = p
 	}
-
-	// ✅ Bangun contents untuk Gemini
 	contents := []map[string]interface{}{
 		{
 			"role": "system",
@@ -57,7 +65,6 @@ func PostChatSession(c *fiber.Ctx) error {
 			},
 		},
 	}
-
 	for _, m := range req.Messages {
 		contents = append(contents, map[string]interface{}{
 			"role": m.Role,
@@ -66,33 +73,27 @@ func PostChatSession(c *fiber.Ctx) error {
 			},
 		})
 	}
-
-	// ✅ Kirim ke Gemini
 	payload := map[string]interface{}{"contents": contents}
 	jsonPayload, _ := json.Marshal(payload)
-
 	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + os.Getenv("GEMINI_API_KEY")
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(jsonPayload))
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to connect to Gemini"})
 	}
 	defer resp.Body.Close()
-
 	var geminiRes model.GeminiReply
 	if err := json.NewDecoder(resp.Body).Decode(&geminiRes); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Invalid Gemini response"})
 	}
-
 	reply := "Saya tidak bisa menjawab saat ini."
 	if len(geminiRes.Candidates) > 0 && len(geminiRes.Candidates[0].Content.Parts) > 0 {
 		reply = geminiRes.Candidates[0].Content.Parts[0].Text
 	}
-
-	// ✅ Simpan ke MongoDB
 	collection := config.DB.Collection("gemini_chat")
 	for _, m := range req.Messages {
 		collection.InsertOne(context.TODO(), model.ChatReflection{
-			SessionID:   req.SessionID,
+			UserID:      &userID,
+			SessionID:   sessionID,
 			Message:     m.Text,
 			AIReply:     "",
 			IsAnonymous: req.IsAnonymous,
@@ -101,18 +102,16 @@ func PostChatSession(c *fiber.Ctx) error {
 		})
 	}
 	collection.InsertOne(context.TODO(), model.ChatReflection{
-		SessionID:   req.SessionID,
+		UserID:      &userID,
+		SessionID:   sessionID,
 		Message:     "",
 		AIReply:     reply,
 		IsAnonymous: req.IsAnonymous,
 		Role:        "model",
 		CreatedAt:   time.Now(),
 	})
-
-	return c.JSON(fiber.Map{"reply": reply})
+	return c.JSON(fiber.Map{"reply": reply, "session_id": sessionID})
 }
-
-
 
 func GetChatBySession(c *fiber.Ctx) error {
 	sessionID := c.Query("session_id")

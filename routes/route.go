@@ -29,7 +29,7 @@ func SetupURL(app *fiber.App) {
 
 		//chatroom
 	api.Post("/chat-session", control.PostChatSession)
-	// app.Get("/get-chat-session", control.GetChatBySession)
+	api.Get("/chat-session", control.GetChatBySession)
 
 
 

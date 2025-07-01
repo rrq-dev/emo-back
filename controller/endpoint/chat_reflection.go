@@ -11,7 +11,10 @@ import (
 	"os"
 	"time"
 
+	"emobackend/helper"
+
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"gopkg.in/mgo.v2/bson"
 )
@@ -41,58 +44,86 @@ func GetAllChatReflections(c *fiber.Ctx) error {
 }
 
 func PostChatReflection(c *fiber.Ctx) error {
-	var input model.ChatRequest
-	if err := c.BodyParser(&input); err != nil || input.Message == "" {
-		return c.Status(400).JSON(fiber.Map{"error": "Message is required"})
+	var input struct {
+		Messages    []string `json:"messages"`
+		SessionID   string   `json:"session_id"`
+		IsAnonymous bool     `json:"is_anonymous"`
+	}
+	if err := c.BodyParser(&input); err != nil || len(input.Messages) == 0 {
+		return c.Status(400).JSON(fiber.Map{"error": "Messages is required"})
 	}
 
-	// Prompt empatik untuk Gemini
-	prompt := map[string]interface{}{
-		"contents": []map[string]interface{}{
-			{
-				"role": "user",
-				"parts": []map[string]string{
-					{"text": "Kamu adalah sahabat reflektif dan suportif. Tanggapi dengan empati dan motivasi berdasarkan curhatan ini: " + input.Message},
+	// Ambil user id dari JWT jika ada
+	userID := ""
+	token := c.Get("Authorization")
+	if token != "" {
+		if payload, err := helper.VerifyJWTToken(token); err == nil {
+			userID = payload.ID
+		}
+	}
+
+	// Buat session id jika kosong
+	sessionID := input.SessionID
+	if sessionID == "" {
+		sessionID = uuid.New().String()
+	}
+
+	collection := config.DB.Collection("gemini_chat")
+	var lastReply string
+	for _, msg := range input.Messages {
+		// Prompt ke Gemini
+		prompt := map[string]interface{}{
+			"contents": []map[string]interface{}{
+				{
+					"role": "user",
+					"parts": []map[string]string{
+						{"text": msg},
+					},
 				},
 			},
-		},
+		}
+		payload, _ := json.Marshal(prompt)
+		apiKey := os.Getenv("GEMINI_API_KEY")
+		url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey
+		resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
+		if err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to connect to Gemini"})
+		}
+		defer resp.Body.Close()
+		var geminiRes model.GeminiReply
+		json.NewDecoder(resp.Body).Decode(&geminiRes)
+		reply := "Maaf, saya belum bisa membalas curhatan kamu."
+		if len(geminiRes.Candidates) > 0 && len(geminiRes.Candidates[0].Content.Parts) > 0 {
+			reply = geminiRes.Candidates[0].Content.Parts[0].Text
+		}
+		lastReply = reply
+		// Simpan chat user
+		reflectionUser := model.ChatReflection{
+			UserID:      &userID,
+			SessionID:   sessionID,
+			Message:     msg,
+			AIReply:     "",
+			IsAnonymous: input.IsAnonymous,
+			Role:        "user",
+			CreatedAt:   time.Now(),
+		}
+		collection.InsertOne(context.Background(), reflectionUser)
+		// Simpan balasan Gemini
+		reflectionAI := model.ChatReflection{
+			UserID:      &userID,
+			SessionID:   sessionID,
+			Message:     "",
+			AIReply:     reply,
+			IsAnonymous: input.IsAnonymous,
+			Role:        "model",
+			CreatedAt:   time.Now(),
+		}
+		collection.InsertOne(context.Background(), reflectionAI)
 	}
-	payload, _ := json.Marshal(prompt)
-
-	// Request ke Gemini API
-	apiKey := os.Getenv("GEMINI_API_KEY")
-	url := "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=" + apiKey
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(payload))
-	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to connect to Gemini"})
-	}
-	defer resp.Body.Close()
-
-	var geminiRes model.GeminiReply
-	json.NewDecoder(resp.Body).Decode(&geminiRes)
-
-	// Ambil respon Gemini
-	reply := "Maaf, saya belum bisa membalas curhatan kamu."
-	if len(geminiRes.Candidates) > 0 && len(geminiRes.Candidates[0].Content.Parts) > 0 {
-		reply = geminiRes.Candidates[0].Content.Parts[0].Text
-	}
-
-	// Simpan ke DB via MongoDB
-reflection := model.ChatReflection{
-    Message:     input.Message,
-    AIReply:     reply,
-    IsAnonymous: true,
-    CreatedAt:   time.Now(),
-}
-
-collection := config.DB.Collection("gemini_chat") // Replace with your actual collection name
-if _, err := collection.InsertOne(context.Background(), reflection); err != nil {
-    return c.Status(500).JSON(fiber.Map{"error": "Gagal menyimpan ke database"})
-}
-
-return c.JSON(fiber.Map{
-    "reply": reply,
-})
+	return c.JSON(fiber.Map{
+		"reply": lastReply,
+		"session_id": sessionID,
+	})
 }
 
 func callGeminiAndSaveReflection(userID string, message string, isAnonymous bool) error {
