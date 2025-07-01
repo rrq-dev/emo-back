@@ -107,6 +107,7 @@ func PostChatReflection(c *fiber.Ctx) error {
 			Role:        "user",
 			CreatedAt:   time.Now(),
 		}
+		fmt.Println("Insert Chat User:", reflectionUser)
 		collection.InsertOne(context.Background(), reflectionUser)
 		// Simpan balasan Gemini
 		reflectionAI := model.ChatReflection{
@@ -118,6 +119,7 @@ func PostChatReflection(c *fiber.Ctx) error {
 			Role:        "model",
 			CreatedAt:   time.Now(),
 		}
+		fmt.Println("Insert Chat AI:", reflectionAI)
 		collection.InsertOne(context.Background(), reflectionAI)
 	}
 	return c.JSON(fiber.Map{
