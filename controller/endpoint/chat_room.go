@@ -126,10 +126,56 @@ func GetChatBySession(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Gagal ambil chat"})
 	}
+	defer cursor.Close(context.TODO())
+
 	if err := cursor.All(context.TODO(), &chats); err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Gagal decode chat"})
 	}
 
-	return c.JSON(chats)
+	// Definisikan struct respons yang sesuai dengan format JSON yang diinginkan
+	type MongoObjectID struct {
+		Oid string `json:"$oid"`
+	}
+
+	type MongoDate struct {
+		Date string `json:"$date"`
+	}
+
+	type ChatReflectionResponse struct {
+		ID          MongoObjectID `json:"_id"`
+		UserID      *string       `json:"user_id,omitempty"`
+		Message     string        `json:"message"`
+		AIReply     string        `json:"ai_reply"`	
+		IsAnonymous bool          `json:"is_anonymous"`
+		Role        string        `json:"role"`
+		SessionID   string        `json:"session_id"`
+		CreatedAt   MongoDate     `json:"created_at"`
+	}
+
+	var responseChats []ChatReflectionResponse
+	for _, chat := range chats {
+		var userID *string
+		if chat.UserID != nil {
+			id := *chat.UserID // Dereference pointer untuk menyalin nilai
+			userID = &id       // Re-reference salinan nilai agar bisa di-assign ke pointer di response struct
+		}
+
+		responseChats = append(responseChats, ChatReflectionResponse{
+			ID: MongoObjectID{
+				Oid: chat.ID.Hex(), // Konversi ObjectID ke string heksadesimalnya
+			},
+			UserID:      userID,
+			Message:     chat.Message,
+			AIReply:     chat.AIReply,
+			IsAnonymous: chat.IsAnonymous,
+			Role:        chat.Role,
+			SessionID:   chat.SessionID,
+			CreatedAt: MongoDate{
+				Date: chat.CreatedAt.Format(time.RFC3339Nano), // Format waktu ke ISO 8601 dengan milidetik
+			},
+		})
+	}
+
+	return c.JSON(responseChats)
 }
 
